@@ -9,7 +9,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#F4F6FA;--card:#FFFFFF;--line:#E4E9F2;
-  --text:#1C2536;--mut:#687792;--acc:#2B6BE4;--acc-dim:#EAF1FE;
+  --text:#1C2536;--mut:#687792;--acc:#2B6BE4;--acc-dim:#EAF1FE;--red:#E5484D;
   --mono:Consolas,"Cascadia Mono","Courier New",monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
 }
@@ -33,12 +33,40 @@ h1{font-size:22px;font-weight:700;letter-spacing:.3px}
 .wake-btn svg{width:20px;height:20px}
 .tip{font-size:12px;color:var(--mut)}
 .tip b{color:var(--acc)}
-.hint-box{border:1px dashed #B9C4D8;border-radius:12px;padding:16px;font-size:13px;color:var(--mut)}
-.hint-box b{color:var(--text)}
+/* ===== 登录层 ===== */
+.login-wrap{position:fixed;inset:0;background:var(--bg);z-index:99;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{width:100%;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 32px rgba(28,37,54,.08)}
+.login-box .logo{width:48px;height:48px;border-radius:14px}
+.login-title{font-size:18px;font-weight:700}
+.login-sub{font-size:12px;color:var(--mut)}
+.login-input{
+  width:100%;padding:13px 14px;font-size:16px;letter-spacing:4px;text-align:center;
+  border:1.5px solid var(--line);border-radius:12px;outline:none;transition:.15s;font-family:var(--mono);
+}
+.login-input:focus{border-color:var(--acc)}
+.login-btn{width:100%;background:var(--acc);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+.login-btn:hover{background:#1E56C4}
+.login-err{font-size:12px;color:var(--red);min-height:16px}
 </style>
 </head>
 <body>
-<main>
+<!-- ===== 登录层 ===== -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#2B6BE4" stroke-width="2.2" stroke-linecap="round" width="24" height="24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </div>
+    <div class="login-title">远程开机 · 登录</div>
+    <div class="login-sub">请输入账号和密码</div>
+    <input class="login-input" id="uid" type="text" placeholder="账号" autocomplete="off">
+    <input class="login-input" id="pw" type="password" placeholder="密码" autocomplete="off">
+    <div class="login-err" id="pwErr"></div>
+    <button class="login-btn" id="loginBtn">进入</button>
+  </div>
+</div>
+
+<!-- ===== 主界面 ===== -->
+<main id="app" style="display:none">
   <div class="logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="#2B6BE4" stroke-width="2.2" stroke-linecap="round" width="28" height="28"><path d="M12 2v9"/><path d="M18.4 6.6a8 8 0 1 1-12.8 0"/></svg>
   </div>
@@ -47,7 +75,7 @@ h1{font-size:22px;font-weight:700;letter-spacing:.3px}
     <div class="sub">点一下，唤醒家里的电脑</div>
   </div>
 
-  <div class="card" id="devCard" style="display:none">
+  <div class="card" id="devCard">
     <div class="dev-name" id="dName"></div>
     <div class="dev-meta">
       <div><b>MAC</b><span id="dMac"></span></div>
@@ -60,23 +88,48 @@ h1{font-size:22px;font-weight:700;letter-spacing:.3px}
     <div class="tip">点击后打开发送页面，点一下 <b>Send</b> 即发送唤醒包，约 1 分钟内电脑启动。</div>
   </div>
 
-  <div class="hint-box" id="noDev" style="display:none">
-    <b>这个页面没有绑定电脑。</b><br><br>
-    请先在「远程开机-设置版.html」里添加电脑并复制开机链接，再打开带链接的启动版。<br><br>
-    或者直接使用设置版生成的手机开机链接。
-  </div>
-
   <div class="tip" id="footTip">发送不依赖任何账号 · 前提：电脑已开网络唤醒 + 路由器已做端口转发</div>
 </main>
 
 <script>
-const qs = {};
+/* ===== 账号密码（想改就改这里）===== */
+var USERS = { "2571432351": "zly123456zou" };
+var AUTHS = "rb_auth_v1";
+
+/* ===== 登录逻辑 ===== */
+function enterApp(){
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  init();
+}
 (function(){
-  const p = new URLSearchParams(location.search);
-  if(p.get('mac')) qs = { name:p.get('name')||'我的电脑', mac:p.get('mac'), ip:p.get('ip')||'', port:p.get('port')||'9' };
+  if(localStorage.getItem(AUTHS) === '1'){ enterApp(); return; }
+  var loginBtn = document.getElementById('loginBtn');
+  var uid = document.getElementById('uid');
+  var pw = document.getElementById('pw');
+  var err = document.getElementById('pwErr');
+  function tryLogin(){
+    var u = uid.value.trim();
+    if(USERS[u] && USERS[u] === pw.value){
+      localStorage.setItem(AUTHS, '1');
+      enterApp();
+    }else{
+      err.textContent = '账号或密码错误';
+      pw.value = '';
+      pw.focus();
+    }
+  }
+  loginBtn.addEventListener('click', tryLogin);
+  pw.addEventListener('keydown', function(e){ if(e.key === 'Enter') tryLogin(); });
+  uid.focus();
 })();
 
-const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* ===== 设备信息：默认内置（永不丢） + URL参数可覆盖 ===== */
+var DEVICE = { name:'我的电脑', mac:'00E04C122C6D', ip:'14.108.70.109', port:'9' };
+(function(){
+  var p = new URLSearchParams(location.search);
+  if(p.get('mac')) DEVICE = { name:p.get('name')||'我的电脑', mac:p.get('mac'), ip:p.get('ip')||DEVICE.ip, port:p.get('port')||'9' };
+})();
 
 function fmtMac(m){
   m = (m||'').toUpperCase().replace(/[^0-9A-F]/g,'');
@@ -84,19 +137,15 @@ function fmtMac(m){
   return m;
 }
 
-if(qs.mac){
-  document.getElementById('devCard').style.display = 'flex';
-  document.getElementById('noDev').style.display = 'none';
-  document.getElementById('dName').textContent = qs.name;
-  document.getElementById('dMac').textContent = fmtMac(qs.mac);
-  document.getElementById('dIp').textContent = (qs.ip||'—') + ' : ' + qs.port;
-  document.getElementById('wakeBtn').addEventListener('click', ()=>{
-    const mac = qs.mac.replace(/[^0-9A-Fa-f]/g,'');
-    const url = `https://www.depicus.com/wake-on-lan/woli?m=${mac}&i=${encodeURIComponent(qs.ip)}&s=255.255.255.255&p=${qs.port||'9'}`;
+function init(){
+  document.getElementById('dName').textContent = DEVICE.name;
+  document.getElementById('dMac').textContent = fmtMac(DEVICE.mac);
+  document.getElementById('dIp').textContent = (DEVICE.ip||'—') + ' : ' + DEVICE.port;
+  document.getElementById('wakeBtn').addEventListener('click', function(){
+    var mac = DEVICE.mac.replace(/[^0-9A-Fa-f]/g,'');
+    var url = 'https://www.depicus.com/wake-on-lan/woli?m=' + mac + '&i=' + encodeURIComponent(DEVICE.ip) + '&s=255.255.255.255&p=' + (DEVICE.port||'9');
     window.open(url, '_blank');
   });
-}else{
-  document.getElementById('noDev').style.display = 'block';
 }
 </script>
 </body>
