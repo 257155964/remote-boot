@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>远程开机 · 设置版</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%232B6BE4' d='M12 2a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1z'/%3E%3Cpath fill='%231C2536' d='M6.3 5.7a1 1 0 0 1 0 1.4A8 8 0 1 0 17.7 7.1a1 1 0 1 1 1.4-1.4 10 10 0 1 1-14.2 0 1 1 0 0 1 1.4 0z'/%3E%3C/svg%3E">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#F4F6FA;--card:#FFFFFF;--line:#E4E9F2;
+  --text:#1C2536;--mut:#687792;--acc:#2B6BE4;
+  --acc-dim:#EAF1FE;--ok:#16A34A;--warn:#B45309;--warn-dim:#FDF3E3;
+  --mono:Consolas,"Cascadia Mono","Courier New",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+main{max-width:620px;margin:0 auto;padding:20px 16px 50px;display:flex;flex-direction:column;gap:14px}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+header{display:flex;align-items:center;gap:10px;padding:4px 0}
+header .logo{width:34px;height:34px;border-radius:9px;background:var(--acc-dim);display:grid;place-items:center;flex:none}
+header h1{font-size:18px;font-weight:700;letter-spacing:.3px}
+header .sub{font-size:12px;color:var(--mut)}
+.badge{font-size:11px;color:var(--acc);background:var(--acc-dim);border-radius:99px;padding:3px 9px;margin-left:auto;flex:none}
+
+.ipbar{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ipbar .lbl{font-size:12px;color:var(--mut)}
+.ipbar .val{font-family:var(--mono);font-size:13px;font-weight:600}
+.ipbar .btn{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:6px 12px;font-size:12px;transition:.15s}
+.ipbar .btn:hover{border-color:var(--acc);color:var(--acc)}
+.ipbar .note{width:100%;font-size:12px;color:var(--mut)}
+.ipbar .note.warn{color:var(--warn)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px}
+.dev-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.dev-name{font-size:15px;font-weight:700;flex:1;min-width:0;word-break:break-all}
+.dev-meta{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:12px;color:var(--mut);margin-bottom:12px}
+.dev-meta b{color:var(--text);font-weight:600;font-family:var(--sans);margin-right:6px}
+.dev-ops{display:flex;gap:8px;flex-wrap:wrap}
+.wake-btn{flex:1;min-width:120px;background:var(--acc);color:#fff;border:none;border-radius:9px;padding:12px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.wake-btn:hover{background:#1E56C4}
+.wake-btn svg{width:16px;height:16px}
+.mini{width:42px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--mut);display:grid;place-items:center;transition:.15s;flex:none}
+.mini:hover{color:var(--acc);border-color:var(--acc)}
+.mini svg{width:15px;height:15px}
+.link-btn{border:1px dashed #B9C4D8;background:#fff;color:var(--acc);border-radius:9px;padding:12px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s;flex:1;min-width:120px}
+.link-btn:hover{border-style:solid;border-color:var(--acc);background:var(--acc-dim)}
+.link-btn svg{width:15px;height:15px}
+
+.add-btn{border:1px dashed #B9C4D8;background:transparent;color:var(--mut);border-radius:12px;padding:15px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.add-btn:hover{border-color:var(--acc);color:var(--acc)}
+
+details.guide{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+details.guide summary{padding:13px 15px;font-size:14px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+details.guide summary::after{content:"+";margin-left:auto;color:var(--mut);font-size:16px}
+details.guide[open] summary::after{content:"−"}
+.gbody{padding:2px 15px 15px;display:flex;flex-direction:column;gap:12px;font-size:13px;color:#3D4B63}
+.step{border-left:3px solid var(--acc);padding-left:12px;display:flex;flex-direction:column;gap:4px}
+.step .t{font-weight:700;color:var(--text)}
+.step .d{color:var(--mut);font-size:12.5px}
+.step code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-family:var(--mono);font-size:12px;display:inline-block;margin:2px 0}
+.gbody .warn-box{background:var(--warn-dim);border:1px solid #F0DCC0;border-radius:8px;padding:9px 12px;font-size:12.5px;color:var(--warn)}
+
+.overlay{position:fixed;inset:0;background:rgba(23,32,48,.5);z-index:50;display:none}
+.overlay.show{display:block}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(400px,92vw);background:#fff;border-radius:14px;padding:20px;display:none;flex-direction:column;gap:12px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal.show{display:flex}
+.modal h3{font-size:15px}
+.modal .field{display:flex;flex-direction:column;gap:5px}
+.modal .field label{font-size:12px;color:var(--mut)}
+.modal .field input{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:16px;outline:none;width:100%}
+.modal .field input:focus{border-color:var(--acc)}
+.modal .ops{display:flex;gap:8px;margin-top:4px}
+.modal .ops button{flex:1;border-radius:8px;padding:11px;font-size:14px;font-weight:600;border:none}
+.modal .ops .ok{background:var(--acc);color:#fff}
+.modal .ops .no{background:var(--bg);color:var(--mut)}
+footer{text-align:center;font-size:11px;color:#9AA7BA;padding:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#2B6BE4" stroke-width="2.2" stroke-linecap="round" width="18" height="18"><path d="M12 2v9"/><path d="M18.4 6.6a8 8 0 1 1-12.8 0"/></svg>
+    </div>
+    <div>
+      <h1>远程开机 · 设置版</h1>
+      <div class="sub">在家里电脑上配置，生成手机开机链接</div>
+    </div>
+    <span class="badge">家里用</span>
+  </header>
+
+  <div class="ipbar">
+    <span class="lbl">宽带出口 IP</span>
+    <span class="val" id="ipVal">未检测</span>
+    <button class="btn" id="checkIp">检测</button>
+    <div class="note" id="ipNote">点「检测」确认宽带是不是公网 IP（远程开机的前提）。</div>
+  </div>
+
+  <div id="devList"></div>
+  <button class="add-btn" id="addBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15"><path d="M12 5v14M5 12h14"/></svg>
+    添加电脑
+  </button>
+
+  <details class="guide">
+    <summary>第一次用？按这 3 步配置</summary>
+    <div class="gbody">
+      <div class="step">
+        <div class="t">第 1 步 · 电脑开启网络唤醒</div>
+        <div class="d">电脑用<b style="color:var(--text)">网线</b>连路由器（有线网卡唤醒最可靠，WiFi 网卡很多不支持）；重启电脑进 BIOS，把「网络唤醒 / Wake on LAN」设为 Enabled；</div>
+        <div class="d">Windows：设备管理器 → 网卡 → 电源管理，勾选「允许此设备唤醒计算机」；网卡高级设置里把「魔术封包唤醒」设为开启；</div>
+        <div class="d">查到本机 MAC 和局域网 IP：</div>
+        <code>ipconfig /all</code>
+      </div>
+      <div class="step">
+        <div class="t">第 2 步 · 路由器端口转发</div>
+        <div class="d">登录路由器管理页（通常 <code>192.168.1.1</code> 或 <code>192.168.0.1</code>），找「端口转发 / 虚拟服务器」，添加：</div>
+        <code>协议 UDP · 外部端口 9 → 电脑内网 IP 的 9 端口</code>
+        <div class="d">注意：如果光猫还是主路由（路由器在它后面），外网包要先经光猫转发到路由器，再转发到电脑，两层都要配；最省事的办法是让光猫改桥接、由路由器拨号。</div>
+      </div>
+      <div class="step">
+        <div class="t">第 3 步 · 确认公网 IP 并添加电脑</div>
+        <div class="d">在上面点「检测」得到出口 IP，再和路由器管理页显示的 WAN IP 对比：一样 = 公网 IP，可以远程开机；不一样 = 运营商内网 IP，需打电信客服 10000 申请公网 IP。</div>
+        <div class="d">添加电脑后，点「复制开机链接」发到手机存好，外面直接用。</div>
+      </div>
+      <div class="warn-box">路由器/光猫的端口映射有时需要管理员权限，普通用户界面可能没有该选项。可联系装维师傅帮忙开通，或搜索你设备型号的超级密码。</div>
+    </div>
+  </details>
+
+  <footer>设置只保存在这台电脑的浏览器里 · 开机链接不依赖任何账号，手机直接可用</footer>
+</main>
+
+<div class="overlay" id="overlay"></div>
+<div class="modal" id="modal">
+  <h3 id="mTitle">添加电脑</h3>
+  <div class="field"><label>名称</label><input id="mName" placeholder="例如：家里台式机"></div>
+  <div class="field"><label>MAC 地址（ipconfig /all 里 Physical Address）</label><input id="mMac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17"></div>
+  <div class="field"><label>公网 IP 或 DDNS 域名（路由器 WAN IP，不是局域网 IP）</label><input id="mIp" placeholder="例如 110.249.202.85"></div>
+  <div class="field"><label>UDP 端口（路由器转发的端口，默认 9）</label><input id="mPort" placeholder="9"></div>
+  <div class="ops"><button class="no" id="mCancel">取消</button><button class="ok" id="mSave">保存</button></div>
+</div>
+
+<script>
+const LS = 'rbs_devices_v1';
+let devices = [];
+let editingId = null;
+try{ devices = JSON.parse(localStorage.getItem(LS)) || []; }catch(e){ devices = []; }
+function save(){ localStorage.setItem(LS, JSON.stringify(devices)); }
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtMac(v){ v=(v||'').toUpperCase().replace(/[^0-9A-F]/g,''); return v.slice(0,12).replace(/(.{2})(?=.)/g,'$1:'); }
+function validMac(m){ return /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test((m||'').toUpperCase()); }
+
+function render(){
+  const box = $('devList');
+  if(!devices.length){
+    box.innerHTML = `<div class="card" style="text-align:center;color:var(--mut);padding:28px 15px">
+      还没有电脑。点下面的「添加电脑」，填好 MAC 和公网 IP。</div>`;
+    return;
+  }
+  box.innerHTML = devices.map(d=>`
+    <div class="card" style="margin-bottom:10px">
+      <div class="dev-head">
+        <span class="dev-name">${esc(d.name)}</span>
+        <button class="mini" onclick="editDev('${esc(d.id)}')" title="编辑">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        </button>
+        <button class="mini" onclick="delDev('${esc(d.id)}')" title="删除">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        </button>
+      </div>
+      <div class="dev-meta">
+        <div><b>MAC</b>${esc(d.mac)}</div>
+        <div><b>地址</b>${esc(d.ip)} : ${esc(d.port||'9')}</div>
+      </div>
+      <div class="dev-ops">
+        <button class="link-btn" onclick="copyLink('${esc(d.id)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          手机开机链接
+        </button>
+        <button class="link-btn" onclick="copyBootLink('${esc(d.id)}')" title="复制启动版带参链接">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+          启动版链接
+        </button>
+        <button class="wake-btn" onclick="testWake('${esc(d.id)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v9"/><path d="M18.4 6.6a8 8 0 1 1-12.8 0"/></svg>
+          测试开机
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+/* 手机开机链接 = Depicus 预填链接，免登录，任何设备浏览器直接开 */
+function buildLink(d){
+  const mac = d.mac.replace(/:/g,'');
+  return `https://www.depicus.com/wake-on-lan/woli?m=${mac}&i=${encodeURIComponent(d.ip)}&s=255.255.255.255&p=${d.port||'9'}`;
+}
+function copyLink(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  const link = buildLink(d);
+  const done = ()=>{ alert('开机链接已复制。发到手机微信/存书签，在外面点开 → 点 Send 即发送唤醒包'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(done).catch(()=>fallbackCopy(link, done));
+  }else fallbackCopy(link, done);
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){ prompt('复制失败，请手动复制这条链接：', text); }
+  ta.remove();
+}
+function copyBootLink(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  const dir = location.href.split('/').slice(0,-1).join('/');
+  const link = `${dir}/boot.html?name=${encodeURIComponent(d.name)}&mac=${d.mac.replace(/:/g,'')}&ip=${encodeURIComponent(d.ip)}&port=${d.port||'9'}`;
+  const done = ()=>{ alert('启动版链接已复制。把「boot.html」和这条链接一起存好，打开链接即进入开机界面'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(done).catch(()=>fallbackCopy(link, done));
+  }else fallbackCopy(link, done);
+}
+function testWake(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  window.open(buildLink(d), '_blank');
+}
+
+function openModal(id){
+  editingId = id || null;
+  const d = id ? devices.find(x=>x.id===id) : null;
+  $('mTitle').textContent = d ? '编辑电脑' : '添加电脑';
+  $('mName').value = d ? d.name : '';
+  $('mMac').value = d ? d.mac : '';
+  $('mIp').value = d ? d.ip : '';
+  $('mPort').value = d ? (d.port||'9') : '9';
+  $('modal').classList.add('show'); $('overlay').classList.add('show');
+  setTimeout(()=>$('mName').focus(),50);
+}
+function closeModal(){ $('modal').classList.remove('show'); $('overlay').classList.remove('show'); }
+function saveDev(){
+  const name = $('mName').value.trim();
+  const mac = fmtMac($('mMac').value);
+  const ip = $('mIp').value.trim();
+  const port = $('mPort').value.trim() || '9';
+  if(!name){ alert('请填名称'); return; }
+  if(!validMac(mac)){ alert('MAC 格式应为 AA:BB:CC:DD:EE:FF'); return; }
+  if(!ip){ alert('请填公网 IP 或域名'); return; }
+  if(!/^[0-9]{1,5}$/.test(port) || +port<1 || +port>65535){ alert('端口不合法'); return; }
+  if(editingId){ const d = devices.find(x=>x.id===editingId); Object.assign(d, {name,mac,ip,port}); }
+  else devices.push({id:'d'+Date.now(), name, mac, ip, port});
+  save(); render(); closeModal();
+}
+function editDev(id){ openModal(id); }
+function delDev(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  if(!confirm('删除「'+d.name+'」？')) return;
+  devices = devices.filter(x=>x.id!==id);
+  save(); render();
+}
+
+/* 公网 IP 检测：多服务依次尝试 */
+function jsonp(url, timeout){
+  return new Promise((resolve,reject)=>{
+    const name = 'ipcb_'+Date.now()+Math.floor(Math.random()*999);
+    const s = document.createElement('script');
+    const t = setTimeout(()=>{cleanup(); reject(new Error('timeout'));}, timeout||8000);
+    function cleanup(){ try{ delete window[name]; }catch(e){} s.remove(); clearTimeout(t); }
+    window[name] = data=>{ cleanup(); resolve(data); };
+    s.src = url + (url.indexOf('?')>-1 ? '&' : '?') + 'callback=' + name;
+    s.onerror = ()=>{ cleanup(); reject(new Error('load error')); };
+    document.head.appendChild(s);
+  });
+}
+async function checkIp(){
+  const val = $('ipVal'), note = $('ipNote');
+  val.textContent = '检测中…';
+  let ip = null;
+  const fetchers = [
+    ['https://api.ipify.org?format=json', j=>j.ip],
+    ['https://ipinfo.io/json', j=>j.ip],
+    ['https://ipapi.co/json/', j=>j.ip]
+  ];
+  for(const [u,pick] of fetchers){
+    try{ const r = await fetch(u); if(!r.ok) continue; const j = await r.json(); if(j && pick(j)){ ip = pick(j); break; } }catch(e){}
+  }
+  if(!ip){ try{ const j = await jsonp('https://ipinfo.io/json'); if(j && j.ip) ip = j.ip; }catch(e){} }
+  if(!ip){ try{ const j = await jsonp('https://ip-api.com/json/'); if(j && j.status==='success') ip = j.query; }catch(e){} }
+  if(ip){
+    val.textContent = ip;
+    note.className = 'note';
+    note.textContent = '和路由器管理页的「WAN IP」对比：一样就是公网 IP，可以远程开机；不一样说明是运营商内网，需打 10000 申请公网 IP。';
+  }else{
+    val.textContent = '检测失败';
+    note.className = 'note warn';
+    note.textContent = '连不上检测服务。可登录路由器管理页直接看 WAN IP，或手机浏览器打开 https://myip.ipip.net 查看出口 IP。';
+  }
+}
+
+$('addBtn').addEventListener('click', ()=>openModal());
+$('checkIp').addEventListener('click', checkIp);
+$('mSave').addEventListener('click', saveDev);
+$('mCancel').addEventListener('click', closeModal);
+$('overlay').addEventListener('click', closeModal);
+$('mMac').addEventListener('input', e=>{ const p=e.target.selectionStart; e.target.value=fmtMac(e.target.value); e.target.setSelectionRange(p,p); });
+render();
+</script>
+</body>
+</html>
