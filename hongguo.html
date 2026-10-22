@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>红果短剧解析</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232B6BE4'><path d='M4 4h16v16H4z' opacity='0'/><path d='M8 5v14l11-7z'/></svg>">
+<style>
+:root{--bg:#0f1115;--card:#1a1d24;--mut:#8a8f99;--acc:#2B6BE4;--line:#2a2e38}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:#e8eaed;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;padding:20px 14px 60px}
+.wrap{max-width:680px;margin:0 auto}
+h1{font-size:20px;font-weight:700;margin:10px 0 4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.inp{width:100%;background:#12141a;border:1px solid var(--line);border-radius:10px;color:#fff;padding:12px 14px;font-size:16px;outline:none}
+.inp:focus{border-color:var(--acc)}
+.btn{width:100%;margin-top:10px;background:var(--acc);border:0;border-radius:10px;color:#fff;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:default}
+.err{color:#e57373;font-size:13px;margin-top:10px;display:none}
+.drama-head{display:flex;gap:14px}
+.cover{width:90px;height:120px;object-fit:cover;border-radius:8px;background:#222;flex-shrink:0}
+.d-title{font-size:17px;font-weight:700;margin-bottom:6px}
+.d-meta{color:var(--mut);font-size:12px;line-height:1.7}
+.eps{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:12px}
+.ep{background:#222630;border:1px solid var(--line);border-radius:8px;color:#e8eaed;padding:9px 0;text-align:center;font-size:13px;cursor:pointer}
+.ep:hover{border-color:var(--acc)}
+.ep.on{background:var(--acc);color:#fff}
+.player{width:100%;background:#000;border-radius:10px;margin-top:12px;display:none;max-height:420px}
+.vurl{font-size:11px;color:var(--mut);word-break:break-all;margin-top:8px;display:none}
+.hint{color:var(--mut);font-size:12px;margin-top:8px}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>红果短剧解析</h1>
+  <div class="sub">粘贴短剧分享链接，解析剧集与视频地址</div>
+
+  <div class="card">
+    <input class="inp" id="url" placeholder="粘贴红果短剧分享链接，如 https://hg.snssdk.com/..." autocomplete="off">
+    <button class="btn" id="go">开始解析</button>
+    <div class="err" id="err"></div>
+    <div class="hint">说明：解析通过公共代理抓取分享页内容，若失败多试几次或换条链接</div>
+  </div>
+
+  <div class="card" id="dramaCard" style="display:none">
+    <div class="drama-head">
+      <img class="cover" id="cover" onerror="this.style.display='none'">
+      <div>
+        <div class="d-title" id="dTitle"></div>
+        <div class="d-meta" id="dMeta"></div>
+      </div>
+    </div>
+    <div class="eps" id="eps"></div>
+    <video class="player" id="player" controls playsinline></video>
+    <div class="vurl" id="vurl"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const err = (msg) => { const e=$("err"); e.style.display="block"; e.textContent=msg; };
+
+// ===== 通过公共 CORS 代理抓取 HTML =====
+const PROXIES = [
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+];
+async function fetchHtml(targetUrl){
+  let lastErr = "";
+  for(const build of PROXIES){
+    try{
+      const r = await fetch(build(targetUrl), {signal: AbortSignal.timeout(20000)});
+      if(!r.ok){ lastErr = "HTTP "+r.status; continue; }
+      const t = await r.text();
+      if(t && t.length > 200) return t;
+      lastErr = "返回内容过短";
+    }catch(e){ lastErr = e.message; }
+  }
+  throw new Error("代理全部失败: " + lastErr);
+}
+
+// ===== 以下解析逻辑移植自原服务端 =====
+function extractDramaId(shareUrl, html){
+  const patterns = [
+    /drama[/_-]([a-zA-Z0-9]+)/i, /[?&]id=([a-zA-Z0-9]+)/i,
+    /novelquickapp\.com\/s\/([a-zA-Z0-9_-]+)/i,
+    /[?&]vid=([a-zA-Z0-9]+)/i, /[?&]video_id=([a-zA-Z0-9]+)/i,
+  ];
+  for(const p of patterns){ const m = shareUrl.match(p); if(m && m[1]) return m[1]; }
+  let m = html.match(/dramaId["'\s:]+["']([^"']+)["']/i); if(m) return m[1];
+  m = html.match(/series_id["'\s:]+["']([^"']+)["']/i); if(m) return m[1];
+  try{ const u = new URL(shareUrl); const v = u.searchParams.get('vid')||u.searchParams.get('video_id'); if(v) return v;
+    const parts = u.pathname.split('/').filter(Boolean); if(parts.length){ const last=parts[parts.length-1]; if(last.length>=4) return last; }
+  }catch(e){}
+  return "drama_" + Date.now();
+}
+
+function extractSeriesData(html){
+  const patterns = [/"series_data"\s*:\s*(\{[\s\S]*?\})\s*[,}]/];
+  for(const p of patterns){
+    const m = html.match(p); if(!m) continue;
+    try{
+      const parsed = JSON.parse(m[1].replace(/&quot;/g,'"').replace(/&amp;/g,'&'));
+      if(parsed.title && typeof parsed.title === 'string') return parsed;
+    }catch(e){}
+  }
+  return null;
+}
+
+function collectAllCandidates(obj){
+  const out=[];
+  (function walk(v){ if(!v||typeof v!=='object')return; out.push(v);
+    for(const k of Object.keys(v)){ const c=v[k]; if(c&&typeof c==='object'){ Array.isArray(c)?c.forEach(walk):walk(c); } } })(obj);
+  return out;
+}
+
+function buildFromCandidate(c, dramaId){
+  const title = c.title || '未知短剧';
+  const cover = c.cover || c.coverUrl || c.cover_image || c.series_cover || '';
+  const desc = c.description || c.desc || c.introduction || c.series_intro || '';
+  const raw = c.episodes || c.episodeList || c.episode_list || c.item_list || [];
+  const eps = (Array.isArray(raw)?raw:[]).map((e,i)=>({
+    index: typeof e.index==='number'?e.index:(typeof e.episode_index==='number'?e.episode_index:(typeof e.sort==='number'?e.sort:i+1)),
+    title: e.title || e.episodeTitle || e.episode_title || ('第'+(i+1)+'集'),
+    episodeId: e.episodeId || e.episode_id || e.id || e.vid || String(i+1),
+  }));
+  const total = c.totalEpisodes || c.total_episodes || c.episodeCount || c.serial_count || eps.length;
+  return { title, cover, description: desc, totalEpisodes: total, episodes: eps, dramaId: String(c.dramaId||dramaId) };
+}
+
+function extractInitialState(html){
+  const patterns = [
+    /window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i,
+    /window\.initialState\s*=\s*(\{[\s\S]*?\});/i,
+    /window\.__NEXT_DATA__\s*=\s*(\{[\s\S]*?\});/i,
+    /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i,
+  ];
+  for(const p of patterns){ const m = html.match(p); if(m && m[1]){ try{ return JSON.parse(m[1].trim()); }catch(e){} } }
+  return null;
+}
+
+function parseFromEmbedded(data, dramaId){
+  if(!data||typeof data!=='object') return null;
+  const cands = collectAllCandidates(data);
+  for(const c of cands){
+    const hasTitle = typeof c.title==='string' && c.title.length>0;
+    const hasCover = ['cover','coverUrl','cover_image','series_cover'].some(k=>typeof c[k]==='string');
+    const hasEps = ['episodes','episodeList','episode_list','item_list'].some(k=>Array.isArray(c[k]));
+    const hasTotal = ['totalEpisodes','total_episodes','episodeCount','serial_count'].some(k=>typeof c[k]==='number');
+    if(hasTitle && (hasCover||hasEps||hasTotal)) return buildFromCandidate(c, dramaId);
+  }
+  return null;
+}
+
+function extractMeta(html, name){
+  let m = html.match(new RegExp('<meta[^>]+(?:property|name)=["\']'+name+'"[^>]+content=["\']([^"\']*)["\']','i'));
+  if(m) return m[1];
+  m = html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']'+name+'"','i'));
+  return m ? m[1] : '';
+}
+
+function extractTotal(html){
+  const ps = [/共\s*(\d+)\s*集/,/(\d+)\s*集全/,/serial_count["'\s:]+(\d+)/i,/total_episodes["'\s:]+(\d+)/i];
+  for(const p of ps){ const m=html.match(p); if(m && m[1]){ const n=parseInt(m[1],10); if(n>0) return n; } }
+  return 1;
+}
+
+function parseFromMeta(html, dramaId, shareUrl){
+  return {
+    title: (extractMeta(html,'og:title')||extractMeta(html,'title')||'红果短剧').trim(),
+    cover: extractMeta(html,'og:image')||'',
+    description: (extractMeta(html,'og:description')||'').trim(),
+    totalEpisodes: extractTotal(html),
+    episodes: Array.from({length: extractTotal(html)},(_,i)=>({index:i+1,title:'第'+(i+1)+'集',episodeId:dramaId+'_'+(i+1)})),
+    dramaId,
+  };
+}
+
+function parseShare(html, shareUrl){
+  const dramaId = extractDramaId(shareUrl, html);
+  const sd = extractSeriesData(html);
+  if(sd && sd.title){
+    return {
+      title: sd.title,
+      cover: sd.series_cover||sd.cover||sd.cover_url||'',
+      description: sd.series_intro||sd.intro||sd.description||'',
+      totalEpisodes: sd.serial_count||sd.total_episodes||sd.episode_count||0,
+      episodes: (sd.item_list||[]).map((it,i)=>({index:it.index||i+1,title:it.title||it.episode_title||('第'+(i+1)+'集'),episodeId:it.episode_id||it.episodeId||it.id||it.vid||String(i+1)})),
+      dramaId: sd.series_id||sd.id||dramaId,
+    };
+  }
+  const emb = extractInitialState(html);
+  if(emb){ const r = parseFromEmbedded(emb, dramaId); if(r) return r; }
+  return parseFromMeta(html, dramaId, shareUrl);
+}
+
+function collectVideoUrls(obj){
+  const urls=[];
+  (function walk(v){ if(!v||typeof v!=='object')return;
+    for(const k of ['videoUrl','video_url','playUrl','play_url','src','url','mp4Url','m3u8Url','videoSrc']){
+      const fv=v[k]; if(typeof fv==='string' && (fv.includes('.mp4')||fv.includes('.m3u8')||fv.startsWith('http')) && fv.length>10) urls.push(fv);
+    }
+    for(const k of Object.keys(v)){ const c=v[k]; if(c&&typeof c==='object'){ Array.isArray(c)?c.forEach(walk):walk(c); } }
+  })(obj);
+  return urls;
+}
+
+function extractVideoFromHtml(html){
+  const ps = [
+    /videoUrl["'\s:]+["']([^"']+\.(?:mp4|m3u8)[^"']*)["']/i,
+    /playUrl["'\s:]+["']([^"']+\.(?:mp4|m3u8)[^"']*)["']/i,
+    /play_url["'\s:]+["']([^"']+\.(?:mp4|m3u8)[^"']*)["']/i,
+    /<video[^>]+src=["']([^"']+)["']/i,
+    /"url"\s*:\s*"([^"]+\.(?:mp4|m3u8)[^"]*)"/i,
+  ];
+  for(const p of ps){ const m=html.match(p); if(m) return m[1]; }
+  return '';
+}
+// ===== 交互 =====
+let curDrama = null;
+let curShareUrl = "";
+
+async function doParse(){
+  const raw = $("url").value.trim();
+  const m = raw.match(/https?:\/\/[^\s]+/i);
+  if(!m){ err("请输入有效的分享链接"); return; }
+  curShareUrl = m[0];
+  err("");
+  $("go").disabled = true; $("go").textContent = "解析中...";
+  try{
+    const html = await fetchHtml(curShareUrl);
+    const d = parseShare(html, curShareUrl);
+    curDrama = d;
+    $("dramaCard").style.display = "block";
+    $("dTitle").textContent = d.title;
+    $("dMeta").textContent = "共 " + d.totalEpisodes + " 集" + (d.description ? ("\n" + d.description) : "");
+    if(d.cover){ $("cover").src = d.cover; $("cover").style.display="block"; } else { $("cover").style.display="none"; }
+    const box = $("eps"); box.innerHTML = "";
+    if(!d.episodes.length){
+      box.innerHTML = '<div style="color:var(--mut);grid-column:1/-1">未提取到剧集列表</div>';
+    }
+    d.episodes.forEach((ep,i)=>{
+      const b = document.createElement("div");
+      b.className = "ep"; b.textContent = ep.title;
+      b.onclick = ()=> playEpisode(ep, b);
+      box.appendChild(b);
+    });
+    window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
+  }catch(e){
+    err("解析失败: " + e.message);
+  }finally{
+    $("go").disabled = false; $("go").textContent = "开始解析";
+  }
+}
+
+async function playEpisode(ep, btn){
+  document.querySelectorAll(".ep").forEach(x=>x.classList.remove("on"));
+  btn.classList.add("on");
+  const player = $("player"), vu = $("vurl");
+  try{
+    // 优先用分享页+当前集id再抓一次；若失败直接展示页面内视频
+    let target = curShareUrl;
+    try{
+      const u = new URL(curShareUrl);
+      if(!u.searchParams.has('vid')) u.searchParams.set('vid', ep.episodeId);
+      target = u.toString();
+    }catch(e){}
+    const html = await fetchHtml(target);
+    let videoUrl = extractVideoFromHtml(html);
+    if(!videoUrl){
+      const emb = extractInitialState(html);
+      if(emb){ const urls = collectVideoUrls(emb); if(urls.length) videoUrl = urls.find(u=>u.includes('.m3u8')) || urls[0]; }
+    }
+    if(!videoUrl) throw new Error("未提取到视频地址，该集可能需要 App 内播放");
+    if(videoUrl.startsWith('//')) videoUrl = 'https:' + videoUrl;
+    vu.style.display = "block";
+    if(videoUrl.includes('.m3u8')){
+      player.style.display = "block";
+      player.pause(); player.removeAttribute("src");
+      vu.textContent = "m3u8 地址（可复制到播放器）: " + videoUrl;
+      if(window.hls){
+        player.src = videoUrl; player.play().catch(()=>{});
+      } else {
+        vu.innerHTML = 'm3u8 需播放器打开：<a href="'+videoUrl+'" target="_blank">'+videoUrl+'</a>';
+      }
+    }else{
+      player.style.display = "block";
+      player.src = videoUrl;
+      player.play().catch(()=>{});
+      vu.textContent = "视频地址: " + videoUrl;
+    }
+  }catch(e){
+    err(e.message);
+  }
+}
+
+$("go").onclick = doParse;
+$("url").addEventListener("keydown", e=>{ if(e.key==="Enter") doParse(); });
+</script>
+</body>
+</html>
